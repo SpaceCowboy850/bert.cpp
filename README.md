@@ -13,6 +13,11 @@ The main goal of `bert.cpp` is to run the BERT model using 4-bit integer quantiz
 * Sample cpp server over tcp socket and a python test client
 * Benchmarks to validate correctness and speed of inference
 
+## Building with Cublas:
+```
+cmake .. -DBERT_CUBLAS=ON
+```
+
 ## Limitations & TODO
 * Tokenizer doesn't correctly handle asian writing (CJK, maybe others)
 * bert.cpp doesn't respect tokenizer, pooling or normalization settings from the model card:
