@@ -45,7 +45,7 @@ int main(int argc, char ** argv) {
 
     // load the model
     {
-        if ((bctx = bert_load_from_file(params.model)) == nullptr) {
+        if ((bctx = bert_load_model_from_file(params.model, -1)) == nullptr) {
             fprintf(stderr, "%s: failed to load model from '%s'\n", __func__, params.model);
             return 1;
         }

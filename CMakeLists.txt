@@ -91,6 +91,41 @@ if (BERT_OPENBLAS)
         message(WARNING "OpenBLAS not found")
     endif()
 endif()
+if (BERT_CUBLAS)
+    cmake_minimum_required(VERSION 3.17)
+    find_package(CUDAToolkit)
+    if (CUDAToolkit_FOUND)
+        message(STATUS "cuBLAS found")
+
+        enable_language(CUDA)
+
+        set(GGML_SOURCES_CUDA ggml/src/ggml-cuda.cu ggml/src/ggml-cuda.h)
+
+        add_compile_definitions(GGML_USE_CUBLAS=1)
+        add_compile_definitions(GGML_CUDA_F16=1)
+        add_compile_definitions(K_QUANTS_PER_ITERATION=2)
+
+        if (BERT_STATIC)
+            set(BERT_EXTRA_LIBS ${BERT_EXTRA_LIBS} CUDA::cudart_static CUDA::cublas_static CUDA::cublasLt_static)
+        else()
+            set(BERT_EXTRA_LIBS ${BERT_EXTRA_LIBS} CUDA::cudart CUDA::cublas CUDA::cublasLt)
+        endif()
+    endif()
+
+    if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+        # 52 == lowest CUDA 12 standard
+        # 60 == f16 CUDA intrinsics
+        # 61 == integer CUDA intrinsics
+        # 70 == compute capability at which unrolling a loop in mul_mat_q kernels is faster
+        if (GGML_CUDA_F16)
+            set(CMAKE_CUDA_ARCHITECTURES "60;61;70") # needed for f16 CUDA intrinsics
+        else()
+            set(CMAKE_CUDA_ARCHITECTURES "52;61;70") # lowest CUDA 12 standard + lowest for integer intrinsics
+        endif()
+    endif()
+    message(STATUS "Using CUDA architectures: ${CMAKE_CUDA_ARCHITECTURES}")
+
+endif()
 
 if (BERT_ALL_WARNINGS)
     if (NOT MSVC)
@@ -188,13 +223,29 @@ if (MSVC)
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
 endif()
 
-add_subdirectory(ggml)
+# add_subdirectory(ggml)
+# ggml
+
+add_library(ggml OBJECT
+            ggml/src/ggml.c
+            ggml/include/ggml/ggml.h
+            ggml/src/ggml-alloc.c
+            ggml/include/ggml/ggml-alloc.h
+            ggml/src/ggml-backend.c
+            ggml/src/ggml-backend.h
+            ${GGML_SOURCES_CUDA})
+
+target_include_directories(ggml PUBLIC . 
+    ./ggml/include/ggml
+    ./ggml/src/
+)
 
 add_library(bert
             bert.cpp
-            bert.h)
+            bert.h
+            ${BERT_SOURCES_CUDA})
 
-target_include_directories(bert PUBLIC .)
+target_include_directories(bert PUBLIC . )
 target_compile_features(bert PUBLIC cxx_std_20)
 target_link_libraries(bert PRIVATE ggml ${BERT_EXTRA_LIBS})
 

@@ -24,7 +24,7 @@ int main(int argc, char ** argv) {
     {
         const int64_t t_start_us = ggml_time_us();
 
-        if ((bctx = bert_load_from_file(params.model)) == nullptr) {
+        if ((bctx = bert_load_model_from_file(params.model, 0)) == nullptr) {
             fprintf(stderr, "%s: failed to load model from '%s'\n", __func__, params.model);
             return 1;
         }
