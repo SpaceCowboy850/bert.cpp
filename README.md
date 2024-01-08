@@ -20,6 +20,12 @@ cd build
 cmake .. -DBERT_CUBLAS=ON
 ```
 
+To Run
+
+```
+main.exe -m path_to_ggml-model-q4_0.bin
+```
+
 ## Limitations & TODO
 * Tokenizer doesn't correctly handle asian writing (CJK, maybe others)
 * bert.cpp doesn't respect tokenizer, pooling or normalization settings from the model card:
