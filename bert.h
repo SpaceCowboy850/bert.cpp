@@ -11,6 +11,8 @@
 #define BERT_API __attribute__ ((visibility ("default")))
 #endif
 
+#define BERT_FILE_MAGIC_GGSN 0x67676d6c // 'ggsn'
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -30,7 +32,8 @@ struct bert_ctx;
 
 typedef int32_t bert_vocab_id;
 
-BERT_API struct bert_ctx * bert_load_from_file(const char * fname);
+// gpu -1 is uses CPU.  Otherwise, loads on GPU index of gpo parameter
+BERT_API struct bert_ctx * bert_load_model_from_file(const char * fname, int gpu);
 BERT_API void bert_free(bert_ctx * ctx);
 
 // Main api, does both tokenizing and evaluation
