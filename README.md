@@ -15,6 +15,8 @@ The main goal of `bert.cpp` is to run the BERT model using 4-bit integer quantiz
 
 ## Building with Cublas:
 ```
+mkdir build
+cd build
 cmake .. -DBERT_CUBLAS=ON
 ```
 
