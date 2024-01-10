@@ -55,6 +55,8 @@ struct gguf_context;
 #define BERT_ATTRIBUTE_FORMAT(...)
 #endif
 
+#define BERT_MAX_NODES   8192
+
 BERT_ATTRIBUTE_FORMAT(1, 2)
 static std::string format(const char* fmt, ...) {
     va_list ap;
@@ -457,7 +459,7 @@ struct bert_model
     std::vector<bert_layer> layers;
 
     struct ggml_context* ctx = {};
-    // spacecowboy:  Use one or the other of these - tensors is the old way, tensors_by_name follows more of a llamacpp usage.
+    // BROWLETT:  Use one or the other of these - tensors is the old way, tensors_by_name follows more of a llamacpp usage.
     std::map<std::string, struct ggml_tensor *> tensors;
     std::vector<std::pair<std::string, struct ggml_tensor*>> tensors_by_name;
 
@@ -469,16 +471,14 @@ struct bert_model
 
         for (size_t i = 0; i < tensors_by_name.size(); ++i) {
             if (tensors_by_name[i].second->backend == GGML_BACKEND_GPU)
-            {
 #ifdef GGML_USE_CUBLAS
                 ggml_cuda_free_data(tensors_by_name[i].second);
 #elif defined(GGML_USE_CLBLAST)
                 ggml_cl_free_data(tensors_by_name[i].second);
 #endif
-                // spacecowboy - Confirm that this memory is actually deleted somewhere...
-                //else
-                //    free(tensors_by_name[i].second);
-            }
+            // BROWLETT - Confirm that this memory is actually deleted somewhere...
+            //else
+            //    free(tensors_by_name[i].second);
         }
 
 #ifdef GGML_USE_CUBLAS
@@ -549,7 +549,7 @@ struct bert_model_loader {
         //struct gguf_context* ctx = (gguf_context *)GGML_ALIGNED_MALLOC(sizeof(struct gguf_context));
         //ctx_gguf = ctx;
 
-        //// spacecowboy
+        //// BRowlett
         //// we'll copy this over to the ctx->infos...I'm guessing this is one reason they switched to GGUF, 
         //// .bin has no indication up front of how many tensors you have, it's simple list of named tensors and
         //// data that is read until you run out of file...
@@ -680,7 +680,7 @@ struct bert_model_loader {
         //        }
         //    }
 
-        //    // spacecowboy: Now take the dummy_infos and properly memaligned ctx->infos
+        //    // BROWLETT: Now take the dummy_infos and properly memaligned ctx->infos
 
         //    //printf(" done\n");
 
@@ -810,7 +810,7 @@ struct bert_model_loader {
                     // TODO: test if this works !!
                     ggml_cuda_transform_tensor(cur->data, cur);
 
-                    // spacecowboy:  Need to determine where the original host data lives...I think it might be in a memory block of the context.
+                    // BROWLETT:  Need to determine where the original host data lives...I think it might be in a memory block of the context.
                     //if (!use_mmap) {
                     //    free(cur->data);
                     //}
@@ -1270,32 +1270,32 @@ static bool bert_load_tensors_original(std::ifstream& fin, bert_ctx* new_bert, i
         model.token_type_embeddings = bert_new_tensor_2d(ctx, wtype, n_embd, 2, model, "embeddings.token_type_embeddings.weight");
         model.position_embeddings = bert_new_tensor_2d(ctx, wtype, n_embd, n_max_tokens, model, "embeddings.position_embeddings.weight");
 
-        model.ln_e_w = bert_new_tensor_1d(ctx, GGML_TYPE_F32, n_embd, model, "embeddings.LayerNorm.weight"); // cpu
-        model.ln_e_b = bert_new_tensor_1d(ctx, GGML_TYPE_F32, n_embd, model, "embeddings.LayerNorm.bias"); // cpu
+        model.ln_e_w = bert_new_tensor_1d(ctx, GGML_TYPE_F32, n_embd, model, "embeddings.LayerNorm.weight"); // passed to ggml_repeat
+        model.ln_e_b = bert_new_tensor_1d(ctx, GGML_TYPE_F32, n_embd, model, "embeddings.LayerNorm.bias"); // passed to ggml_repeat
 
         for (int i = 0; i < n_layer; ++i)
         {
             auto& layer = model.layers[i];
 
-            layer.ln_att_w = bert_new_tensor_1d(ctx, GGML_TYPE_F32, n_embd, model, std::string("encoder.layer." + std::to_string(i) + ".attention.output.LayerNorm.weight")); // cpu
-            layer.ln_att_b = bert_new_tensor_1d(ctx, GGML_TYPE_F32, n_embd, model, std::string("encoder.layer." + std::to_string(i) + ".attention.output.LayerNorm.bias")); // cpu
-            layer.ln_out_w = bert_new_tensor_1d(ctx, GGML_TYPE_F32, n_embd, model, std::string("encoder.layer." + std::to_string(i) + ".output.LayerNorm.weight")); //cpu
-            layer.ln_out_b = bert_new_tensor_1d(ctx, GGML_TYPE_F32, n_embd, model, std::string("encoder.layer." + std::to_string(i) + ".output.LayerNorm.bias"));  //cpu
+            layer.ln_att_w = bert_new_tensor_1d(ctx, GGML_TYPE_F32, n_embd, model, std::string("encoder.layer." + std::to_string(i) + ".attention.output.LayerNorm.weight")); // passed to ggml_repeat
+            layer.ln_att_b = bert_new_tensor_1d(ctx, GGML_TYPE_F32, n_embd, model, std::string("encoder.layer." + std::to_string(i) + ".attention.output.LayerNorm.bias")); // passed to ggml_repeat
+            layer.ln_out_w = bert_new_tensor_1d(ctx, GGML_TYPE_F32, n_embd, model, std::string("encoder.layer." + std::to_string(i) + ".output.LayerNorm.weight")); // passed to ggml_repeat
+            layer.ln_out_b = bert_new_tensor_1d(ctx, GGML_TYPE_F32, n_embd, model, std::string("encoder.layer." + std::to_string(i) + ".output.LayerNorm.bias"));  // passed to ggml_repeat
 
             layer.q_w = bert_new_tensor_2d(ctx, wtype, n_embd, n_embd, model, std::string("encoder.layer." + std::to_string(i) + ".attention.self.query.weight")); 
-            layer.q_b = bert_new_tensor_1d(ctx, GGML_TYPE_F32, n_embd, model, std::string("encoder.layer." + std::to_string(i) + ".attention.self.query.bias")); // cpu
+            layer.q_b = bert_new_tensor_1d(ctx, GGML_TYPE_F32, n_embd, model, std::string("encoder.layer." + std::to_string(i) + ".attention.self.query.bias")); // passed to ggml_repeat
             layer.k_w = bert_new_tensor_2d(ctx, wtype, n_embd, n_embd, model, std::string("encoder.layer." + std::to_string(i) + ".attention.self.key.weight"));
-            layer.k_b = bert_new_tensor_1d(ctx, GGML_TYPE_F32, n_embd, model, std::string("encoder.layer." + std::to_string(i) + ".attention.self.key.bias")); // cpu
+            layer.k_b = bert_new_tensor_1d(ctx, GGML_TYPE_F32, n_embd, model, std::string("encoder.layer." + std::to_string(i) + ".attention.self.key.bias")); // passed to ggml_repeat
             layer.v_w = bert_new_tensor_2d(ctx, wtype, n_embd, n_embd, model, std::string("encoder.layer." + std::to_string(i) + ".attention.self.value.weight"));
-            layer.v_b = bert_new_tensor_1d(ctx, GGML_TYPE_F32, n_embd, model, std::string("encoder.layer." + std::to_string(i) + ".attention.self.value.bias")); // cpu
+            layer.v_b = bert_new_tensor_1d(ctx, GGML_TYPE_F32, n_embd, model, std::string("encoder.layer." + std::to_string(i) + ".attention.self.value.bias")); // passed to ggml_repeat
             layer.o_w = bert_new_tensor_2d(ctx, wtype, n_embd, n_embd, model, std::string("encoder.layer." + std::to_string(i) + ".attention.output.dense.weight"));
-            layer.o_b = bert_new_tensor_1d(ctx, GGML_TYPE_F32, n_embd, model, std::string("encoder.layer." + std::to_string(i) + ".attention.output.dense.bias"));
+            layer.o_b = bert_new_tensor_1d(ctx, GGML_TYPE_F32, n_embd, model, std::string("encoder.layer." + std::to_string(i) + ".attention.output.dense.bias")); // passed to ggml_repeat
 
             layer.ff_i_w = bert_new_tensor_2d(ctx, wtype, n_embd, n_intermediate, model, std::string("encoder.layer." + std::to_string(i) + ".intermediate.dense.weight"));
-            layer.ff_i_b = bert_new_tensor_1d(ctx, GGML_TYPE_F32, n_intermediate, model, std::string("encoder.layer." + std::to_string(i) + ".intermediate.dense.bias")); // cpu
+            layer.ff_i_b = bert_new_tensor_1d(ctx, GGML_TYPE_F32, n_intermediate, model, std::string("encoder.layer." + std::to_string(i) + ".intermediate.dense.bias")); // passed to ggml_repeat
 
             layer.ff_o_w = bert_new_tensor_2d(ctx, wtype, n_intermediate, n_embd, model, std::string("encoder.layer." + std::to_string(i) + ".output.dense.weight"));
-            layer.ff_o_b = bert_new_tensor_1d(ctx, GGML_TYPE_F32, n_embd, model, std::string("encoder.layer." + std::to_string(i) + ".output.dense.bias")); // cpu
+            layer.ff_o_b = bert_new_tensor_1d(ctx, GGML_TYPE_F32, n_embd, model, std::string("encoder.layer." + std::to_string(i) + ".output.dense.bias")); // passed to ggml_repeat
         }
     }
 
@@ -1509,8 +1509,7 @@ static bool bert_model_load(const std::string& path_model, bert_ctx* new_bert, i
             info->name.data = (char*)calloc(info->name.n + 1, 1);
             strncpy_s(info->name.data, info->name.n + 1, (&tsr)->first.c_str(), name_len);
 
-            info->n_dims = tsr.second->n_dims;
-            for (uint32_t j = 0; j < info->n_dims; ++j) {
+            for (uint32_t j = 0; j < GGML_MAX_DIMS; ++j) {
                 info->ne[j] = tsr.second->ne[j];
             }
 
@@ -1522,7 +1521,7 @@ static bool bert_model_load(const std::string& path_model, bert_ctx* new_bert, i
             i++;
         }
 
-        // spacecowboy:  Do we need to be aligned since this is _already in memory_?
+        // BROWLETT:  Do we need to be aligned since this is _already in memory_?
         // maybe can ditch...unsure.
         ml.ctx_gguf->alignment = GGUF_DEFAULT_ALIGNMENT;
 
@@ -1604,7 +1603,7 @@ struct bert_ctx* bert_load_model_from_file(const char* path_model, int32_t gpu)
         return nullptr;
     }
 
-    // spacecowboy - At this point llama.cpp llama_load_model_from_file is finished, however, it has a "common.cpp" that 
+    // BROWLETT - At this point llama.cpp llama_load_model_from_file is finished, however, it has a "common.cpp" that 
     // calls "load_model_from_file" then calls "llama_new_context_with_model", so we'll continue that function now
 
     // Calculate space requirements for setting up context buffers later
@@ -1615,7 +1614,7 @@ struct bert_ctx* bert_load_model_from_file(const char* path_model, int32_t gpu)
 
         static const size_t tensor_alignment = 32;
 
-        // spacecowboy - in Llama.cpp, lines, 8905 -> 8938, it's figuring out a worst case memory requirements
+        // BROWLETT - in Llama.cpp, lines, 8905 -> 8938, it's figuring out a worst case memory requirements
         // Currently - for simplicity - I'm going to just put 32MB in, mainly because it simplifies the refactor at the moment.        
 
         size_t alloc_size = 32 * 1024 * 1024;
@@ -1655,7 +1654,7 @@ struct bert_ctx* bert_load_model_from_file(const char* path_model, int32_t gpu)
     }
     printf("%s: mem_per_token %zu KB, mem_per_input %lld MB\n", __func__, new_bert->mem_per_token / (1 << 10), new_bert->mem_per_input / (1 << 20));
 
-    // spacecowboy:  Need to continue the work in llama_new_context_with_model starting at line 8905, but continuing
+    // BROWETT:  Need to continue the work in llama_new_context_with_model starting at line 8905, but continuing
     // as there is cuda scratch space allocated there that will be important later on when we push the
     // compute graph into cuda.
 
@@ -1755,7 +1754,8 @@ void bert_eval_batch(
         };
 
         struct ggml_context *ctx0 = ggml_init(params);
-        struct ggml_cgraph gf = {};
+        //struct ggml_cgraph gf = {};
+        struct ggml_cgraph* gf = ggml_new_graph_custom(ctx0, BERT_MAX_NODES, false);
 
         // Embeddings. word_embeddings + token_type_embeddings + position_embeddings
         struct ggml_tensor *token_layer = ggml_new_tensor_1d(ctx0, GGML_TYPE_I32, N);
@@ -1769,11 +1769,11 @@ void bert_eval_batch(
 
         struct ggml_tensor *positions = ggml_new_tensor_1d(ctx0, GGML_TYPE_I32, N);
         ggml_set_name(positions, "positions");
-        to_gpu_func(positions);
         for (int i = 0; i < N; i++)
         {
             ggml_set_i32_1d(positions, i, i);
         }
+        to_gpu_func(positions);
 
         struct ggml_tensor *inpL = ggml_get_rows(ctx0, model.word_embeddings, token_layer);
         ggml_set_name(inpL, "get_rows_word_embedding");
@@ -1830,7 +1830,7 @@ void bert_eval_batch(
                 ggml_format_name(Qcur->src[0], "reshape_add_repeat_q_b_mul_q_w_src0_%d", il);
                 to_gpu_func(Qcur->src[0]);
                 ggml_format_name(Qcur->src[0]->src[0], "reshape_add_repeat_q_b_mul_q_w_src0_src0_%d", il);
-                // to_gpu_func(Qcur->src[0]->src[0]); // ggml_repeat can't be on the gpu
+                to_gpu_func(Qcur->src[0]->src[0]); // ggml_repeat can't be on the gpu
                 ggml_format_name(Qcur->src[0]->src[1], "reshape_add_repeat_q_b_mul_q_w_src0_src1_%d", il);
                 to_gpu_func(Qcur->src[0]->src[1]);
                 struct ggml_tensor *Q = ggml_permute(ctx0, Qcur, 0, 2, 1, 3);
@@ -1847,7 +1847,7 @@ void bert_eval_batch(
                 ggml_format_name(Kcur->src[0], "reshape_add_repeat_k_b_mul_k_w_src0_%d", il);
                 to_gpu_func(Kcur->src[0]);
                 ggml_format_name(Kcur->src[0]->src[0], "reshape_add_repeat_k_b_mul_k_w_src0_src0_%d", il);
-                // to_gpu_func(Kcur->src[0]->src[0]); // ggml_repeat can't be on the gpu
+                to_gpu_func(Kcur->src[0]->src[0]); // ggml_repeat can't be on the gpu
                 ggml_format_name(Kcur->src[0]->src[1], "reshape_add_repeat_k_b_mul_k_w_src0_src1_%d", il);
                 to_gpu_func(Kcur->src[0]->src[1]);
                 struct ggml_tensor *K = ggml_permute(ctx0, Kcur, 0, 2, 1, 3);
@@ -1864,7 +1864,7 @@ void bert_eval_batch(
                 ggml_format_name(Vcur->src[0], "reshape_add_repeat_v_b_mul_v_w_src0_%d", il);
                 to_gpu_func(Vcur->src[0]);
                 ggml_format_name(Vcur->src[0]->src[0], "reshape_add_repeat_v_b_mul_v_w_src0_src0_%d", il);
-                // to_gpu_func(Vcur->src[0]->src[0]); // ggml_repeat can't be on the gpu
+                to_gpu_func(Vcur->src[0]->src[0]); // ggml_repeat can't be on the gpu
                 ggml_format_name(Vcur->src[0]->src[1], "reshape_add_repeat_v_b_mul_v_w_src0_src1_%d", il);
                 to_gpu_func(Vcur->src[0]->src[1]);
                 struct ggml_tensor *V = ggml_permute(ctx0, Vcur, 0, 2, 1, 3);
@@ -1878,13 +1878,13 @@ void bert_eval_batch(
                 KQ = ggml_soft_max(ctx0,
                                    ggml_scale(ctx0,
                                               KQ,
-                                              ggml_new_f32(ctx0, 1.0f / sqrt((float)d_head))));
+                                              1.0f / sqrt((float)d_head)));
                 ggml_format_name(KQ, "softmax_scale_%d", il);
                 to_gpu_func(KQ);
                 ggml_format_name(KQ->src[0], "softmax_scale_src0_%d", il);
                 to_gpu_func(KQ->src[0]);
-                ggml_format_name(KQ->src[0]->src[1], "softmax_scale_src0_src1_%d", il);
-                to_gpu_func(KQ->src[0]->src[1]);
+                //ggml_format_name(KQ->src[0]->src[1], "softmax_scale_src0_src1_%d", il);
+                //to_gpu_func(KQ->src[0]->src[1]);
 
                 V = ggml_cont(ctx0, ggml_transpose(ctx0, V));
                 ggml_format_name(V, "cont_transpose_V_%d", il);
@@ -1910,7 +1910,7 @@ void bert_eval_batch(
             ggml_format_name(cur, "add_repeat_o_b_matmul_o_w_%d", il);
             to_gpu_func(cur);
             ggml_format_name(cur->src[0], "add_repeat_o_b_matmul_o_w_src_0_%d", il);
-            // to_gpu_func(cur->src[0]); // ggml_repeat can't be on the gpu
+            to_gpu_func(cur->src[0]); // ggml_repeat can't be on the gpu
             ggml_format_name(cur->src[1], "add_repeat_o_b_matmul_o_w_src_1_%d", il);
             to_gpu_func(cur->src[1]);
 
@@ -1936,8 +1936,8 @@ void bert_eval_batch(
                 to_gpu_func(cur->src[0]);
                 ggml_format_name(cur->src[0]->src[0], "attnnorm_add_mul_repeat_att_w_repeat_att_b_src0_src0_%d", il);
                 ggml_format_name(cur->src[1], "attnnorm_add_mul_repeat_att_w_repeat_att_b_src1_%d", il);
-                // to_gpu_func(cur->src[0]->src[0]); // ggml_repeat can't be on the gpu
-                // to_gpu_func(cur->src[1]);         // ggml_repeat can't be on the gpu
+                to_gpu_func(cur->src[0]->src[0]); // ggml_repeat can't be on the gpu
+                to_gpu_func(cur->src[1]);         // ggml_repeat can't be on the gpu
             }
             struct ggml_tensor *att_output = cur;
             // intermediate_output = self.intermediate(attention_output)
@@ -1950,7 +1950,7 @@ void bert_eval_batch(
             ggml_format_name(cur, "attnout_add_repeat_ff_i_b_%d", il);
             to_gpu_func(cur);
             ggml_format_name(cur->src[0], "attnout_add_repeat_ff_i_b_src0_%d", il);
-            // to_gpu_func(cur->src[0]); // ggml_repeat can't be on the gpu
+            to_gpu_func(cur->src[0]); // ggml_repeat can't be on the gpu
             cur = ggml_gelu(ctx0, cur);
             ggml_format_name(cur, "attnout_gelu_%d", il);
             to_gpu_func(cur);
@@ -1965,7 +1965,7 @@ void bert_eval_batch(
             ggml_format_name(cur, "attnout_add_repeat_ff_o_b_%d", il);
             to_gpu_func(cur);
             ggml_format_name(cur->src[0], "attnout_add_repeat_ff_o_b_src0_%d", il);
-            // to_gpu_func(cur->src[0]); // ggml_repeat can't be on the gpu
+            to_gpu_func(cur->src[0]); // ggml_repeat can't be on the gpu
             // attentions bypass the intermediate layer
             cur = ggml_add(ctx0, att_output, cur);
             ggml_format_name(cur, "attnout_add_att_output_%d", il);
@@ -1987,9 +1987,9 @@ void bert_eval_batch(
                 ggml_format_name(cur->src[0], "outnorm_add_matmul_ln_out_w_repeat_ln_out_b_src0_%d", il);
                 to_gpu_func(cur->src[0]);
                 ggml_format_name(cur->src[0]->src[0], "outnorm_add_matmul_ln_out_w_repeat_ln_out_b_src0_src0_%d", il);
-                // to_gpu_func(cur->src[0]->src[0]); // ggml_repeat can't be on the gpu
+                to_gpu_func(cur->src[0]->src[0]); // ggml_repeat can't be on the gpu
                 ggml_format_name(cur->src[1], "outnorm_add_matmul_ln_out_w_repeat_ln_out_b_src1_%d", il);
-                // to_gpu_func(cur->src[1]); // ggml_repeat can't be on the gpu
+                to_gpu_func(cur->src[1]); // ggml_repeat can't be on the gpu
             }
             inpL = cur;
         }
@@ -2016,22 +2016,26 @@ void bert_eval_batch(
         to_gpu_func(length->src[0]);
         ggml_set_name(length->src[0]->src[0], "postloop_sqrt_sum_sqr_inpL_src0_src0");
         to_gpu_func(length->src[0]->src[0]);
-        inpL = ggml_scale(ctx0, inpL, ggml_div(ctx0, ggml_new_f32(ctx0, 1.0f), length));
+        // inpL = ggml_scale(ctx0, inpL, ggml_div(ctx0, ggml_new_f32(ctx0, 1.0f), length));
+        inpL = ggml_div(ctx0, inpL, length);
         ggml_set_name(inpL, "postloop_scale_div_length");
-        to_gpu_func(inpL);
-        ggml_set_name(inpL->src[1], "postloop_scale_div_length_src1");
-        to_gpu_func(inpL->src[1]);
-        ggml_set_name(inpL->src[1]->src[0], "postloop_scale_div_length_src1_src0");
-        to_gpu_func(inpL->src[1]->src[0]);
+        //to_gpu_func(inpL);
+        //to_gpu_func(inpL->src[0]);
+        //to_gpu_func(inpL->src[1]);
+        //ggml_set_name(inpL->src[1], "postloop_scale_div_length_src1");
+        //to_gpu_func(inpL->src[1]);
+        //ggml_set_name(inpL->src[1]->src[0], "postloop_scale_div_length_src1_src0");
+        //to_gpu_func(inpL->src[1]->src[0]);
 
         ggml_tensor *output = inpL;
         // run the computation
-        ggml_build_forward_expand(&gf, output);
+        ggml_build_forward_expand(gf, output);
+        // BROWLETT:  Where does gf memory get cleaned up?
 
         // end of graph building phase
 
-        // spacecowboy:  Unclear if I need this yet...
-        //ggml_allocr_alloc_graph(lctx.alloc, gf);
+        // Browlett:  Unclear if I need this yet...
+        // ggml_allocr_alloc_graph(ctx.alloc, gf);
 
         //struct ggml_tensor* res = gf->nodes[gf->n_nodes - 1];
         //struct ggml_tensor* embeddings = gf->nodes[gf->n_nodes - 2];
@@ -2040,16 +2044,16 @@ void bert_eval_batch(
         //GGML_ASSERT(strcmp(embeddings->name, "result_norm") == 0);
 
 #ifdef GGML_USE_CUBLAS
-        for (int i = 0; i < gf.n_leafs; i++) {
-            ggml_tensor* node = gf.leafs[i];
+        for (int i = 0; i < gf->n_leafs; i++) {
+            ggml_tensor* node = gf->leafs[i];
             if (node->backend == GGML_BACKEND_GPU && node->extra == NULL) {
                 ggml_cuda_assign_scratch_offset(node, (char*)node->data - (char*)ctx->buf_alloc.data);
                 ggml_cuda_copy_to_device(node);
             }
         }
 
-        for (int i = 0; i < gf.n_nodes; i++) {
-            ggml_tensor* node = gf.nodes[i];
+        for (int i = 0; i < gf->n_nodes; i++) {
+            ggml_tensor* node = gf->nodes[i];
             if (node->backend == GGML_BACKEND_GPU && node->extra == NULL) {
                 ggml_cuda_assign_scratch_offset(node, (char*)node->data - (char*)ctx->buf_alloc.data);
             }
@@ -2064,7 +2068,7 @@ void bert_eval_batch(
         //res->backend = GGML_BACKEND_CPU;
 #endif
 
-        ggml_graph_compute_with_ctx(ctx0, &gf, n_threads);
+        ggml_graph_compute_with_ctx(ctx0, gf, n_threads);
 
 
         // float *dat = ggml_get_data_f32(output);

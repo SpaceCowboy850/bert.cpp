@@ -110,6 +110,8 @@ if (BERT_CUBLAS)
         else()
             set(BERT_EXTRA_LIBS ${BERT_EXTRA_LIBS} CUDA::cudart CUDA::cublas CUDA::cublasLt)
         endif()
+
+        set(BERT_EXTRA_LIBS ${BERT_EXTRA_LIBS} CUDA::cuda_driver)
     endif()
 
     if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
@@ -233,6 +235,10 @@ add_library(ggml OBJECT
             ggml/include/ggml/ggml-alloc.h
             ggml/src/ggml-backend.c
             ggml/src/ggml-backend.h
+            ggml/src/ggml-backend-impl.h
+            ggml/src/ggml-impl.h
+            ggml/src/ggml-quants.c
+            ggml/src/ggml-quants.h
             ${GGML_SOURCES_CUDA})
 
 target_include_directories(ggml PUBLIC . 
